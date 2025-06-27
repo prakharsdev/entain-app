@@ -264,14 +264,27 @@ docker-compose -f build/docker-compose.yml down -v
 
 ### 5. **Predefined Users**
 
-* Users `1`, `2`, and `3` are pre-seeded in the DB with balances as strings, and IDs stored as uint64
-* To test:
+* Users `1`, `2`, and `3` are automatically seeded into the database when the service starts.
+* Each user is initialized with a balance of `"0.00"` (stored as a string), and user IDs are stored as `uint64`.
 
-  ```bash
-  curl http://localhost:8080/user/1/balance
-  ```
+#### Note:
 
-  Should return: `{ "userId": 1, "balance": "0.00" }`
+If you've already performed transactions (e.g., sent `win` requests), the balances will reflect those updates. The example below assumes a fresh database.
+
+#### To test:
+
+```bash
+curl http://localhost:8080/user/1/balance
+```
+
+Expected output (before any transactions):
+
+```json
+{"userId":1,"balance":"0.00"}
+```
+
+If you see a different balance (e.g., `"60.72"`), it's because you’ve already processed some transactions for that user.
+
 
 ### 6. **Rate Limiting**
 
