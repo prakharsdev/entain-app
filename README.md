@@ -85,7 +85,7 @@ This service uses two tables in PostgreSQL: `users` and `transactions`.
 
 ### ERD
 
-assets/ERD.png
+[assets/ERD.png](https://github.com/prakharsdev/entain-app/blob/master/assets/ERD.png)
 
 ---
 
