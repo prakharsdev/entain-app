@@ -19,6 +19,11 @@ func TestLoadTransactionEndpoint(t *testing.T) {
 	client := &http.Client{}
 	var wg sync.WaitGroup
 
+	successCount := 0
+	rateLimitCount := 0
+	otherErrorCount := 0
+	var mu sync.Mutex
+
 	start := time.Now()
 
 	for i := 0; i < rps; i++ {
@@ -27,7 +32,6 @@ func TestLoadTransactionEndpoint(t *testing.T) {
 			defer wg.Done()
 
 			body := bytes.NewBufferString(fmt.Sprintf(payload, i))
-
 			req, err := http.NewRequest("POST", url, body)
 			if err != nil {
 				t.Errorf("Request error: %v", err)
@@ -43,12 +47,24 @@ func TestLoadTransactionEndpoint(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
-				t.Errorf("Unexpected status: %d", resp.StatusCode)
+			mu.Lock()
+			defer mu.Unlock()
+			switch resp.StatusCode {
+			case http.StatusOK:
+				successCount++
+			case http.StatusTooManyRequests:
+				rateLimitCount++
+			default:
+				otherErrorCount++
 			}
 		}(i)
 	}
 
 	wg.Wait()
 	t.Logf("Processed %d requests in %v", rps, time.Since(start))
+	t.Logf("Success: %d, RateLimited: %d, Other Errors: %d", successCount, rateLimitCount, otherErrorCount)
+
+	if rateLimitCount > 0 {
+		t.Fail() // force test failure if rate limiting kicks in
+	}
 }

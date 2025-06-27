@@ -49,6 +49,12 @@ func main() {
 	// Prometheus metrics endpoint
 	r.Handle("/metrics", promhttp.Handler()).Methods("GET")
 
+	// Root route for browser base URL access
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Entain API is running. See /health or /user/{id}/balance"))
+	}).Methods("GET")
+	
 	// Step 4: Apply middleware stack (panic recovery → logging → rate limiting)
 	stacked := utils.ChainMiddlewares(r,
 		utils.RecoverMiddleware,

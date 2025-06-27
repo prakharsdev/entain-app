@@ -18,3 +18,9 @@ func IsValidSourceType(source string) bool {
 func IsValidState(state string) bool {
 	return state == "win" || state == "lose"
 }
+
+// IsValidAmountFormat ensures at most 2 decimal places
+func IsValidAmountFormat(amount string) bool {
+	parts := strings.Split(amount, ".")
+	return len(parts) == 1 || (len(parts) == 2 && len(parts[1]) <= 2)
+}

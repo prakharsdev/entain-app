@@ -3,6 +3,8 @@ package utils
 import (
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,10 +20,24 @@ var (
 	mu          sync.Mutex
 	clients     = make(map[string]*ClientLimiter)
 	cleanupFreq = time.Minute * 5
+
+	defaultRPS   = getEnvAsInt("RATE_LIMIT_RPS", 30)
+	defaultBurst = getEnvAsInt("RATE_LIMIT_BURST", 60)
 )
 
 func init() {
 	go cleanupExpiredClients()
+}
+
+// getEnvAsInt reads an environment variable and returns it as an integer.
+// If not set or invalid, it falls back to the provided default value.
+func getEnvAsInt(key string, defaultVal int) int {
+	if val, ok := os.LookupEnv(key); ok {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			return intVal
+		}
+	}
+	return defaultVal
 }
 
 func getIP(r *http.Request) string {
@@ -38,7 +54,7 @@ func getLimiter(ip string) *rate.Limiter {
 
 	client, exists := clients[ip]
 	if !exists {
-		limiter := rate.NewLimiter(2, 3) // 30 RPS burst of 60
+		limiter := rate.NewLimiter(rate.Limit(defaultRPS), defaultBurst)
 		clients[ip] = &ClientLimiter{limiter, time.Now()}
 		return limiter
 	}
@@ -46,6 +62,7 @@ func getLimiter(ip string) *rate.Limiter {
 	client.lastSeen = time.Now()
 	return client.limiter
 }
+
 func cleanupExpiredClients() {
 	for {
 		time.Sleep(cleanupFreq)

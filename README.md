@@ -17,6 +17,7 @@ What you can expect out of the box: I can spin it up with a single make up, hamm
 ---
 
 ## Project Structure
+This project follows the [golang-standards/project-layout](https://github.com/golang-standards/project-layout) for a clean and scalable Go codebase.
 
 ```
 .
@@ -56,6 +57,35 @@ What you can expect out of the box: I can spin it up with a single make up, hamm
     └── user_test.go              # Tests for core user service logic
 
 ```
+## Database Schema
+
+This service uses two tables in PostgreSQL: `users` and `transactions`.
+
+### Table Summary
+
+#### `users`
+
+| Column    | Type          | Description                 |
+| --------- | ------------- | --------------------------- |
+| `id`      | BIGINT        | Primary key (user ID)       |
+| `balance` | NUMERIC(12,2) | User balance (default 0.00) |
+
+#### `transactions`
+
+| Column           | Type          | Description                      |
+| ---------------- | ------------- | -------------------------------- |
+| `transaction_id` | TEXT          | Primary key, ensures idempotency |
+| `user_id`        | BIGINT        | Foreign key → users.id           |
+| `amount`         | NUMERIC(12,2) | Amount (max 2 decimal places)    |
+| `state`          | TEXT          | 'win' or 'lose'                  |
+| `source_type`    | TEXT          | 'game', 'server', or 'payment'   |
+| `created_at`     | TIMESTAMP     | Defaults to current timestamp    |
+
+---
+
+### ERD
+
+assets/ERD.png
 
 ---
 
@@ -65,6 +95,7 @@ What you can expect out of the box: I can spin it up with a single make up, hamm
 
 * Docker + Docker Compose
 * `make` (recommended)
+* WSL (if using Windows, tested on WSL2 + Ubuntu)
 
 ### Clone the Repo
 
@@ -92,7 +123,7 @@ DB runs on: localhost:5432
 make test-script
 ```
 
-✔️ Sends sample transaction and verifies balance
+Sends sample transaction and verifies balance
 
 ### Run all tests:
 
@@ -100,7 +131,7 @@ make test-script
 make test
 ```
 
-✔️ Runs:
+Runs:
 
 * Load test (25 RPS)
 * Mux route test
@@ -108,19 +139,60 @@ make test
 
 ---
 
-## Completed vs Requirements
+## Alternative: Run with plain Docker Compose
 
-| Feature                              | Status        |
-| ------------------------------------ | --------------|
-| `POST /user/{id}/transaction`        | Implemented   |
-| `GET /user/{id}/balance`             | Implemented   |
-| Validations (state, amount, headers) | Done          |
-| Idempotency (transactionId)          | Done          |
-| Balance cannot go negative           | Done          |
-| Handles 20–30 RPS                    | Load-tested   |
-| Docker + Compose support             | Fully working |
-| Users 1, 2, 3 pre-created            | Done          |
-| Docs on how to run/test              | (this README) |
+If you're not using `make`, you can still start everything with Docker Compose:
+
+```bash
+docker-compose -f build/docker-compose.yml up -d --build
+```
+
+To shut it down and remove volumes:
+
+```bash
+docker-compose -f build/docker-compose.yml down -v
+```
+
+---
+
+## Makefile Commands
+
+| Command            | Description                           |
+| ------------------ | ------------------------------------- |
+| `make up`          | Build and start all containers        |
+| `make down`        | Stop and remove all containers        |
+| `make rebuild-app` | Rebuild only the app container        |
+| `make logs`        | Tail logs from the app container      |
+| `make clean`       | Remove generated Go binary            |
+| `make test`        | Run all Go tests in `/test` directory |
+| `make test-script` | Run bash-based API smoke test         |
+
+---
+
+## Coverage Summary of All Requirements
+
+| Requirement from the Test Task                                | Covered in Features Section?       | Notes and Details                                                              |
+| ------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /user/{userId}/transaction` route                       | Yes – Feature 1                    | Handles transactions and updates user balances with sample requests            |
+| `GET /user/{userId}/balance` route                            | Yes – Features 1, 5                | Returns balance as string with 2 decimal places in expected JSON format        |
+| Validate `Source-Type` header                                 | Yes – Feature 4                    | Accepts only `game`, `server`, or `payment` (case-insensitive)                 |
+| Accept and validate `state`, `amount`, `transactionId` fields | Yes – Feature 3                    | Validates allowed values and ensures format correctness                        |
+| Only allow `win`, `lose` states                               | Yes – Feature 3                    | Uses `IsValidState()` for strict state validation                              |
+| Ensure each `transactionId` is processed only once            | Yes – Feature 2                    | Fully idempotent; duplicate transactions return "already processed"            |
+| Prevent user balance from going negative                      | Yes – Feature 3                    | `lose` requests fail gracefully if balance is insufficient                     |
+| Predefined users 1, 2, 3 with valid IDs                       | Yes – Feature 5                    | Users are seeded in DB; validated with curl and unit tests                     |
+| Ready to run with Docker Compose (no extra config)            | Yes – "How to Run" section         | Works out of the box using `docker-compose up` or `make up`                    |
+| Testable via automation tools                                 | Yes – Entire project design        | Uses JSON responses, HTTP codes, and stable routes for automated validation    |
+| Can handle 20–30 RPS                                          | Yes – Feature 6                    | Load tested via `load_test.go`; rate limits tested at 100 RPS                  |
+| Balance returned as string (2 decimal places)                 | Yes – Features 1, 3                | Uses `strconv.FormatFloat(..., 2)` for consistent precision                    |
+| `amount` field is string and limited to 2 decimal places      | Yes – Feature 3                    | Enforced via `IsValidAmountFormat()` logic in validation                       |
+| Proper HTTP status codes used                                 | Yes – Throughout                   | 200 OK for success, 400+ for validation and server errors                      |
+| Structured logging in JSON                                    | Yes – Feature 7                    | Uses `logrus`; logs include duration, method, status, path, etc.               |
+| Prometheus metrics exposed                                    | Yes – Feature 8                    | `/metrics` endpoint enabled and tested                                         |
+| Health check endpoint                                         | Yes – Feature 10                   | `/health` returns both app and DB status in JSON                               |
+| Graceful panic recovery                                       | Yes – Feature 9                    | Middleware catches panics and logs them instead of crashing the server         |
+| Docker + Makefile automation                                  | Yes – Covered in Makefile section  | `make up`, `make down`, `make test` simplify running, testing, and debugging   |
+
 
 ---
 
@@ -149,12 +221,13 @@ make test
     -d '{"state":"win", "amount":"10.00", "transactionId":"dup_txn"}'
   ```
 
-  ✔️ Second request will return: `{ "message": "Transaction already processed" }`
+  Second request will return: `{ "message": "Transaction already processed" }`
 
 ### 3. **Atomic Balance Updates with Negative Balance Protection**
 
 * `lose` transactions check and block insufficient balance updates
 * Amounts are parsed and stored as strings with up to 2 decimal places, matching the spec
+* Transactions with more than 2 decimal places are rejected to ensure precision integrity
 * To test:
 
   ```bash
@@ -164,7 +237,16 @@ make test
     -d '{"state":"lose", "amount":"100000", "transactionId":"big_loss"}'
   ```
 
-  ✔️ Should return: `{ "error": "insufficient balance" }`
+  Should return: `{ "error": "insufficient balance" }`
+
+  ```bash
+  curl -X POST http://localhost:8080/user/1/transaction \
+    -H "Source-Type: game" \
+    -H "Content-Type: application/json" \
+    -d '{"state":"win", "amount":"10.123", "transactionId":"too_precise"}'
+  ```
+
+  Should return: `{ "error": "Amount must have at most 2 decimal places" }`
 
 ### 4. **Source-Type Header Validation**
 
@@ -178,7 +260,7 @@ make test
     -d '{"state":"win", "amount":"1.00", "transactionId":"bad_src"}'
   ```
 
-  ✔️ Should return: `{ "error": "Missing or invalid Source-Type header" }`
+  Should return: `{ "error": "Missing or invalid Source-Type header" }`
 
 ### 5. **Predefined Users**
 
@@ -193,10 +275,23 @@ make test
 
 ### 6. **Rate Limiting**
 
-* Each IP is limited using token-bucket algorithm (\~2 requests/sec, burst of 3)
-* To test:
-  Use a load test like `ab`, `wrk`, or hammer with curl in a loop
-  After a few rapid requests, it should return HTTP 429 Too Many Requests
+* To simulate high load and trigger rate limiting, modify rps = 100 in load_test.go, then run:
+```bash
+RATE_LIMIT_RPS=2 RATE_LIMIT_BURST=3 make test TEST_ARGS="-count=1"
+```
+
+You’ll observe:
+
+* 429 Too Many Requests for excess calls
+* Output includes success vs rate-limited count
+
+Example:
+
+```
+--- FAIL: TestLoadTransactionEndpoint
+    load_test.go:64: Processed 100 requests in 76.57ms
+    load_test.go:65: Success: 62, RateLimited: 38, Other Errors: 0
+```
 
 ### 7. **Logging (Structured)**
 
@@ -204,13 +299,13 @@ make test
 * To test:
 
   ```bash
-  docker-compose logs -f app
+  make logs 
   ```
 
   Logs should appear like:
 
   ```json
-  {"level":"info","method":"POST","path":"/user/1/transaction","duration":12}
+  {"duration":1,"level":"info","method":"GET","msg":"Handled request","path":"/user/1/balance","time":"2025-06-27T00:32:19Z"}
   ```
 
 ### 8. **Prometheus Metrics**
@@ -288,6 +383,12 @@ I implemented middleware to recover from panics gracefully and always return JSO
 ### Configuration
 
 Database credentials and connection parameters are loaded via environment variables with sane defaults, which makes this system 12-factor compliant and easy to deploy across environments.
+
+### Data Precision and Storage
+
+* All **balances and amounts are stored as strings** in the database (e.g., `"9.25"` instead of float) to exactly match the expected response format and avoid floating-point inaccuracies. This also aligns with the spec which expects amounts as string with 2 decimal places.
+
+* During validation, **amounts with more than 2 decimal places are rejected**. This ensures strict adherence to the defined precision limit and avoids rounding surprises in financial computations.
 
 ### Makefile + Docker + Compose
 

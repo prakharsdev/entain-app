@@ -32,6 +32,17 @@ func HandleTransaction(w http.ResponseWriter, r *http.Request) {
 		utils.WriteError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
+	
+	// Validate transaction state and amount precision
+	if !utils.IsValidState(req.State) {
+		utils.WriteError(w, http.StatusBadRequest, "Invalid state: must be 'win' or 'lose'")
+		return
+	}
+
+	if !utils.IsValidAmountFormat(req.Amount) {
+		utils.WriteError(w, http.StatusBadRequest, "Amount must have at most 2 decimal places")
+		return
+	}
 
 	// Process the transaction
 	err = ProcessTransaction(userID, req, sourceType)
