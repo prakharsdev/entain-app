@@ -15,15 +15,23 @@ What you can expect out of the box: I can spin it up with a single make up, hamm
 * ready‑to‑scrape Prometheus metrics.
 
 ---
+# Full Project Walkthrough Video
+
+[![Demo video](image.png)](https://youtu.be/nELngBKhUBw)
+
+---
 
 ## Project Structure
 This project follows the [golang-standards/project-layout](https://github.com/golang-standards/project-layout) for a clean and scalable Go codebase.
 
 ```
 .
-├── Dockerfile                      # Docker setup for building the Go app image
-├── Makefile                        # CLI shortcuts for build, run, test, etc.
-├── README.md                       # Project documentation with setup, usage, and design notes
+├── Dockerfile                        # Docker setup for building the Go app image
+├── Makefile                          # CLI shortcuts for build, run, test, etc.
+├── README.md                         # Project documentation with setup, usage, and design notes
+├── wait-for-postgres.sh              # Script to wait for Postgres before app startup
+├── assets
+│   └── ERD.png                       # Entity Relationship Diagram for DB schema
 ├── build
 │   ├── docker-compose.yml         # Docker Compose config to run app + Postgres together
 │   └── init.sql                   # SQL script to initialize DB schema and seed users

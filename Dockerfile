@@ -34,10 +34,17 @@ FROM alpine:latest
 
 WORKDIR /root/
 
+# Install netcat for DB availability check
+RUN apk add --no-cache netcat-openbsd
+
 # Copy binary only from builder
 COPY --from=builder /app/entain-server .
 
+# Copy the wait script
+COPY wait-for-postgres.sh /wait-for-postgres.sh
+RUN chmod +x /wait-for-postgres.sh
+
 EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["./entain-server"]
+# Run the wait script before starting the app
+ENTRYPOINT ["/wait-for-postgres.sh", "db", "5432", "--", "./entain-server"]
